@@ -159,6 +159,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .time-entry-row .te-hours{color:var(--accent);font-weight:700;flex-shrink:0}
 .time-entry-row .te-del{color:var(--text3);cursor:pointer;padding:0 2px}
 .time-entry-row .te-del:hover{color:#F56E6E}
+/* CHAT */
+.chat-wrap{display:flex;flex-direction:column;height:calc(100vh - 130px);min-height:300px}
+.chat-messages{flex:1;overflow-y:auto;padding:16px 0;display:flex;flex-direction:column;gap:2px}
+.chat-msg{display:flex;gap:10px;padding:6px 0;align-items:flex-end}
+.chat-msg.mine{flex-direction:row-reverse}
+.chat-bubble{max-width:68%;padding:10px 14px;border-radius:16px;font-size:13px;line-height:1.55;word-break:break-word}
+.chat-msg:not(.mine) .chat-bubble{background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:4px;color:var(--text)}
+.chat-msg.mine .chat-bubble{background:var(--accent);color:#1A1A1F;border-bottom-right-radius:4px}
+.chat-bubble.meeting-pub{background:var(--surface2);border:1px solid var(--accent);border-radius:12px;padding:14px 16px;max-width:80%;cursor:pointer}
+.chat-bubble.meeting-pub:hover{border-color:var(--text)}
+.chat-meta{font-size:10px;color:var(--text3);margin-top:3px;white-space:nowrap}
+.chat-msg.mine .chat-meta{text-align:right}
+.chat-avatar-sm{width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#1A1A1F;flex-shrink:0}
+.chat-input-bar{display:flex;gap:8px;align-items:flex-end;padding-top:12px;border-top:1px solid var(--border)}
+.chat-input-bar textarea{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:10px 14px;color:var(--text);font-family:var(--font);font-size:13px;resize:none;max-height:120px;overflow-y:auto;line-height:1.5}
+.chat-input-bar textarea:focus{outline:none;border-color:var(--accent)}
+.chat-send-btn{background:var(--accent);border:none;border-radius:10px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:16px;color:#1A1A1F;transition:opacity .15s}
+.chat-send-btn:hover{opacity:.85}
+.chat-day-divider{text-align:center;font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:10px 0;position:relative}
+.chat-day-divider::before,.chat-day-divider::after{content:'';position:absolute;top:50%;width:calc(50% - 50px);height:1px;background:var(--border)}
+.chat-day-divider::before{left:0}.chat-day-divider::after{right:0}
 .layout{display:flex;flex:1;overflow:hidden}
 .sidebar{width:216px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;padding:12px 10px}
 .sidebar-section{margin-bottom:8px}
@@ -765,6 +786,20 @@ tbody td{padding:10px 14px;color:var(--text);font-weight:500}
           <button class="btn-primary" onclick="openLogTime()" style="font-size:12px;padding:8px 16px">+ Log Time</button>
         </div>
         <div id="wl-emp-content" style="padding-bottom:30px"></div>
+      </div>
+
+      <!-- TEAM CHAT PAGE -->
+      <div class="page" id="page-chat">
+        <div class="page-header">
+          <div><div class="page-title">Team Chat</div><div class="page-sub" id="chat-sub">Live updates from everyone</div></div>
+        </div>
+        <div class="chat-wrap">
+          <div class="chat-messages" id="chat-messages"></div>
+          <div class="chat-input-bar">
+            <textarea id="chat-input" rows="1" placeholder="Message the team…" onkeydown="chatKeydown(event)" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+            <button class="chat-send-btn" onclick="sendChatMsg()" title="Send">➤</button>
+          </div>
+        </div>
       </div>
 
       <!-- DELIVERABLES PAGE -->
@@ -1609,6 +1644,7 @@ let DB = JSON.parse(localStorage.getItem('agencyos_db') || 'null') || {
   approvals: [],
   timeEntries: [],
   activityEvents: [],
+  chatMessages: [],
   schemaVersion: 0
 };
 // Ensure new fields exist on loaded DB
@@ -1620,6 +1656,7 @@ if(!Array.isArray(DB.feedback)) DB.feedback = [];
 if(!Array.isArray(DB.approvals)) DB.approvals = [];
 if(!Array.isArray(DB.timeEntries)) DB.timeEntries = [];
 if(!Array.isArray(DB.activityEvents)) DB.activityEvents = [];
+if(!Array.isArray(DB.chatMessages)) DB.chatMessages = [];
 if(DB.schemaVersion === undefined) DB.schemaVersion = 0;
 
 let currentUser = null;
@@ -1730,6 +1767,10 @@ function buildSidebar(){
       <button class="nav-item" onclick="showPage('page-content-calendar')"><span class="nav-icon">📅</span>Content Calendar</button>
       <button class="nav-item" onclick="showPage('page-meetings')"><span class="nav-icon">◐</span>Meetings & Notes</button>
     </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Communication</div>
+      <button class="nav-item" id="nav-chat-dir" onclick="showPage('page-chat')"><span class="nav-icon">💬</span>Team Chat</button>
+    </div>
     `;
   } else {
     const pendingCount = DB.tasks.filter(t=>isAssignedTo(t,currentUser)&&!t.done).length;
@@ -1754,6 +1795,10 @@ function buildSidebar(){
       <div class="sidebar-label">Data</div>
       <button class="nav-item" onclick="showPage('page-workload-emp')"><span class="nav-icon">◫</span>My Workload</button>
       <button class="nav-item" onclick="showPage('page-perf-entry')"><span class="nav-icon">◈</span>Performance Entry</button>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Communication</div>
+      <button class="nav-item" id="nav-chat-emp" onclick="showPage('page-chat')"><span class="nav-icon">💬</span>Team Chat</button>
     </div>`;
   }
 }
@@ -1786,6 +1831,7 @@ function showPage(id){
     'page-feedback': renderFeedbackApprovals,
     'page-workload-dir': renderDirWorkload,
     'page-workload-emp': renderEmpWorkload,
+    'page-chat': renderChat,
   };
   if(renders[id]) renders[id]();
 }
@@ -3850,6 +3896,7 @@ window.addEventListener('load', async ()=>{
       if(!Array.isArray(DB.approvals)) DB.approvals = [];
       if(!Array.isArray(DB.timeEntries)) DB.timeEntries = [];
       if(!Array.isArray(DB.activityEvents)) DB.activityEvents = [];
+if(!Array.isArray(DB.chatMessages)) DB.chatMessages = [];
       if(DB.schemaVersion === undefined) DB.schemaVersion = 0;
       migrateFormerUsers();
       runDataMigrations();
@@ -3871,9 +3918,11 @@ window.addEventListener('load', async ()=>{
           'page-people':renderPeoplePage,
           'page-campaigns':renderCampaigns,
           'page-workload-dir':renderDirWorkload,
-          'page-workload-emp':renderEmpWorkload
+          'page-workload-emp':renderEmpWorkload,
+          'page-chat':renderChat
         };
         if(renderMap[active.id]) renderMap[active.id]();
+        updateChatBadge();
       }
       buildSidebar();
     });
@@ -5307,7 +5356,10 @@ function renderMeetingList(el){
           '<div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:3px">'+escHtml(m.title)+'</div>' +
           '<div style="font-size:12px;color:var(--text3)">'+escHtml(m.date)+timeStr+'</div>' +
         '</div>' +
-        (hasDirectorAccess()||m.createdBy===currentUser ? '<button onclick="event.stopPropagation();deleteMeeting(\''+m.id+'\')" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 6px;flex-shrink:0">✕</button>' : '') +
+        '<div style="display:flex;gap:4px;flex-shrink:0">' +
+          '<button onclick="event.stopPropagation();publishMeetingToChat(\''+m.id+'\')" style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-size:11px;font-weight:700;padding:4px 10px" title="Share to Team Chat">Share</button>' +
+          (hasDirectorAccess()||m.createdBy===currentUser ? '<button onclick="event.stopPropagation();deleteMeeting(\''+m.id+'\')" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 6px">✕</button>' : '') +
+        '</div>' +
       '</div>' +
       (preview ? '<div style="font-size:12px;color:var(--text2);line-height:1.6">'+escHtml(preview)+((m.notes||'').length>140?'…':'')+'</div>' : '') +
     '</div>';
@@ -6080,6 +6132,115 @@ function deleteApproval(id){
 }
 
 /* ============================================================
+   TEAM CHAT
+   ============================================================ */
+
+let _chatLastSeen = parseInt(localStorage.getItem('agencyos_chat_last_seen')||'0');
+
+function renderChat(){
+  const el = document.getElementById('chat-messages');
+  if(!el) return;
+  const msgs = (DB.chatMessages||[]).slice().sort((a,b)=>a.ts-b.ts);
+  const allU = {...USERS,...(DB.dynamicUsers||[]).reduce((o,u)=>{o[u.key]=u;return o},{})};
+  const sub = document.getElementById('chat-sub');
+  if(sub) sub.textContent = msgs.length + ' message' + (msgs.length!==1?'s':'') + ' · Live';
+
+  let html = '';
+  let lastDay = '';
+  msgs.forEach(msg=>{
+    const day = new Date(msg.ts).toLocaleDateString('en-GB',{weekday:'long',month:'long',day:'numeric'});
+    if(day!==lastDay){ html+=`<div class="chat-day-divider">${day}</div>`; lastDay=day; }
+    const isMe = msg.uid===currentUser;
+    const u = allU[msg.uid]||{name:msg.uid,color:'#8888A0'};
+    const av = `<div class="chat-avatar-sm" style="background:${u.color||'var(--accent)'}">${(u.name||'?')[0].toUpperCase()}</div>`;
+    const timeStr = new Date(msg.ts).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+
+    if(msg.type==='meeting'){
+      const m = (DB.meetings||[]).find(m=>m.id===msg.meetingId);
+      const preview = m ? (m.notes||'').slice(0,200).replace(/\n/g,' ') : '';
+      html+=`<div class="chat-msg${isMe?' mine':''}">
+        ${!isMe?av:''}
+        <div>
+          <div class="chat-bubble meeting-pub" onclick="openViewMeeting('${msg.meetingId||''}')">
+            <div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📋 Meeting Minutes</div>
+            <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px">${escHtml(msg.title||'Meeting')}</div>
+            ${msg.meetingDate?`<div style="font-size:11px;color:var(--text3);margin-bottom:6px">${escHtml(msg.meetingDate)}${msg.meetingTime?' · '+msg.meetingTime:''}</div>`:''}
+            ${preview?`<div style="font-size:12px;color:var(--text2);line-height:1.5">${escHtml(preview.slice(0,180))}${preview.length>180?'…':''}</div>`:''}
+            <div style="font-size:10px;color:var(--accent);margin-top:8px;font-weight:700">Tap to open full notes →</div>
+          </div>
+          <div class="chat-meta">${isMe?'You':escHtml(u.name)} · ${timeStr}</div>
+        </div>
+        ${isMe?av:''}
+      </div>`;
+    } else {
+      html+=`<div class="chat-msg${isMe?' mine':''}">
+        ${!isMe?av:''}
+        <div>
+          <div class="chat-bubble">${escHtml(msg.text||'').replace(/\n/g,'<br>')}</div>
+          <div class="chat-meta">${isMe?'You':escHtml(u.name)} · ${timeStr}</div>
+        </div>
+        ${isMe?av:''}
+      </div>`;
+    }
+  });
+  if(!html) html='<div style="text-align:center;padding:60px 0;color:var(--text3);font-size:13px">No messages yet. Say hello 👋</div>';
+  el.innerHTML = html;
+
+  // Mark all seen and scroll to bottom
+  _chatLastSeen = Date.now();
+  localStorage.setItem('agencyos_chat_last_seen', _chatLastSeen);
+  updateChatBadge();
+  requestAnimationFrame(()=>{ el.scrollTop = el.scrollHeight; });
+}
+
+function sendChatMsg(){
+  const inp = document.getElementById('chat-input');
+  const text = (inp?.value||'').trim();
+  if(!text) return;
+  if(!DB.chatMessages) DB.chatMessages=[];
+  DB.chatMessages.push({id:'cm_'+Date.now(), uid:currentUser, text, ts:Date.now(), type:'msg'});
+  inp.value='';
+  inp.style.height='auto';
+  saveDB();
+  renderChat();
+}
+
+function chatKeydown(e){
+  if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendChatMsg(); }
+}
+
+function publishMeetingToChat(meetingId){
+  const m = (DB.meetings||[]).find(m=>m.id===meetingId);
+  if(!m) return;
+  if(!confirm('Share "'+m.title+'" minutes to Team Chat?')) return;
+  if(!DB.chatMessages) DB.chatMessages=[];
+  DB.chatMessages.push({
+    id:'cm_'+Date.now(), uid:currentUser, type:'meeting',
+    meetingId, title:m.title, meetingDate:m.date, meetingTime:m.time||'',
+    ts:Date.now()
+  });
+  saveDB();
+  showToast('Meeting minutes shared to Team Chat ✓');
+}
+
+function updateChatBadge(){
+  const msgs = (DB.chatMessages||[]).filter(m=>m.ts>_chatLastSeen && m.uid!==currentUser);
+  const count = msgs.length;
+  // Update sidebar nav badge
+  ['nav-chat-dir','nav-chat-emp'].forEach(id=>{
+    const btn = document.getElementById(id);
+    if(!btn) return;
+    const existing = btn.querySelector('.nav-badge');
+    if(count>0){
+      if(existing) existing.textContent=count;
+      else btn.insertAdjacentHTML('beforeend',`<span class="nav-badge">${count}</span>`);
+    } else {
+      if(existing) existing.remove();
+    }
+  });
+}
+
+/* ============================================================
    PHASE 4 — WORKLOAD, TIME TRACKING, PROJECT HEALTH & NOTIFICATIONS
    ============================================================ */
 
@@ -6592,11 +6753,12 @@ saveDB = function(){
   setTimeout(generateNotifications, 50);
 };
 
-// Run notifications after login
+// Run notifications + chat badge after login
 const _origUpdateTopbar = updateTopbar;
 updateTopbar = function(){
   _origUpdateTopbar.apply(this, arguments);
   setTimeout(generateNotifications, 200);
+  setTimeout(updateChatBadge, 250);
 };
 
 </script>
