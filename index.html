@@ -1818,7 +1818,7 @@ function showPage(id){
     'page-gantt-emp': ()=>renderGantt('gantt-container-emp'),
     'page-productivity': renderProductivity,
     'page-reports': renderReports,
-    'page-my-tasks': renderMyTasks,
+    'page-my-tasks': ()=>{ renderMyTasks(); },
     'page-my-clients': renderMyClients,
     'page-perf-entry': renderPerfEntry,
     'page-content-calendar': renderContentCalendar,
@@ -1903,18 +1903,18 @@ function renderOverview(){
   const overdue = pendingTasks.filter(t=>t.due && new Date(t.due)<today);
   const activeClients = DB.clients.length;
   const isDir = hasDirectorAccess();
-  const taskPage = isDir ? 'page-overview' : 'page-my-tasks';
+  const clientPage = isDir ? 'page-clients' : 'page-my-clients';
   document.getElementById('overview-kpis').innerHTML=`
-    <div class="kpi-card" onclick="showPage('${isDir?'page-clients':'page-my-clients'}')" style="cursor:pointer" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+    <div class="kpi-card" onclick="showPage('${clientPage}')" style="cursor:pointer" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
       <div class="kpi-label">Active Clients</div><div class="kpi-value kpi-accent">${activeClients}</div><div class="kpi-sub">tap to view →</div>
     </div>
-    <div class="kpi-card" onclick="showPage('${taskPage}');setTimeout(()=>setTaskFilter('pending'),50)" style="cursor:pointer" onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor='var(--border)'">
+    <div class="kpi-card" onclick="showPage('page-my-tasks');setTimeout(()=>setTaskFilter('pending'),50)" style="cursor:pointer" onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor='var(--border)'">
       <div class="kpi-label">Pending Tasks</div><div class="kpi-value">${pendingTasks.length}</div><div class="kpi-sub">tap to view →</div>
     </div>
-    <div class="kpi-card" onclick="showPage('${taskPage}');setTimeout(()=>setTaskFilter('done'),50)" style="cursor:pointer" onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
+    <div class="kpi-card" onclick="showPage('page-my-tasks');setTimeout(()=>setTaskFilter('done'),50)" style="cursor:pointer" onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
       <div class="kpi-label">Completed</div><div class="kpi-value kpi-green">${doneTasks.length}</div><div class="kpi-sub">tap to view →</div>
     </div>
-    <div class="kpi-card" onclick="showPage('${taskPage}');setTimeout(()=>setTaskFilter('overdue'),50)" style="cursor:pointer" onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--border)'">
+    <div class="kpi-card" onclick="showPage('page-my-tasks');setTimeout(()=>setTaskFilter('overdue'),50)" style="cursor:pointer" onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--border)'">
       <div class="kpi-label">Overdue</div><div class="kpi-value kpi-red">${overdue.length}</div><div class="kpi-sub">tap to view →</div>
     </div>`;
   // Team status
@@ -5888,18 +5888,25 @@ function renderApprovalList(el, fc){
     const clientName = client?(client.businessName||client.contractName):'Internal';
     const deliv = (DB.deliverables||[]).find(d=>d.id===a.deliverableId);
     const sc = APPR_COLORS[a.status]||'#888';
-    return '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:18px 20px;margin-bottom:10px">' +
+    const isApproved = a.status==='Approved';
+    const isRejected = a.status==='Rejected'||a.status==='Changes Requested';
+    const cardBorder = isApproved ? 'border-color:#3DDBA0' : isRejected ? 'border-color:#F56E6E' : '';
+    const dateStr = a.createdAt ? new Date(a.createdAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '';
+    return '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:18px 20px;margin-bottom:10px;'+cardBorder+'">' +
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">' +
         '<div style="flex:1">' +
-          '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">' +
-            '<span style="font-size:10px;font-weight:700;background:'+sc+'22;color:'+sc+';padding:2px 8px;border-radius:20px">'+escHtml(a.status)+'</span>' +
+          '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap">' +
+            '<span style="font-size:11px;font-weight:800;background:'+sc+'22;color:'+sc+';padding:3px 10px;border-radius:20px">'+(isApproved?'✓ ':isRejected?'✕ ':'')+escHtml(a.status)+'</span>' +
             '<span style="font-size:10px;font-weight:700;background:var(--surface2);color:var(--text2);padding:2px 8px;border-radius:20px">'+escHtml(a.approvalType||'')+'</span>' +
+            (dateStr?'<span style="font-size:10px;color:var(--text3)">'+dateStr+'</span>':'') +
           '</div>' +
-          '<div style="font-size:12px;color:var(--text2)">'+escHtml(clientName)+(deliv?' → '+escHtml(deliv.name):'')+' '+(a.approvedBy?'· Approved by: '+escHtml(a.approvedBy):'')+'</div>' +
-          (a.note?'<div style="font-size:12px;color:var(--text);margin-top:6px">'+escHtml(a.note)+'</div>':'') +
-          (a.evidenceLink&&/^https?:\/\//.test(a.evidenceLink)?'<a href="'+a.evidenceLink+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent);text-decoration:none">Evidence ↗</a>':'') +
+          '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">'+escHtml(deliv?deliv.name:'No deliverable linked')+'</div>' +
+          '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">'+escHtml(clientName)+(a.approvedBy?' &nbsp;·&nbsp; <span style="color:var(--text2)">'+escHtml(a.approvalType==='Approved'?'Approved':'Actioned')+' by '+escHtml(a.approvedBy)+'</span>':'')+'</div>' +
+          (a.note?'<div style="font-size:12px;color:var(--text);line-height:1.5;background:var(--surface2);border-radius:var(--radius);padding:8px 12px;margin-bottom:8px">'+escHtml(a.note)+'</div>':'') +
+          (a.evidenceLink&&/^https?:\/\//.test(a.evidenceLink)?'<a href="'+a.evidenceLink+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;font-weight:700;color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;gap:4px">📎 View Evidence ↗</a>':'') +
         '</div>' +
-        (hasDirectorAccess()?'<div style="display:flex;gap:4px">' +
+        (hasDirectorAccess()?'<div style="display:flex;gap:4px;flex-shrink:0">' +
+          (!isApproved?'<button onclick="quickApprove(\''+a.id+'\')" style="font-size:11px;font-weight:700;background:rgba(61,219,160,.15);border:1px solid #3DDBA0;border-radius:var(--radius);padding:5px 10px;cursor:pointer;color:#3DDBA0">✓ Approve</button>':'') +
           '<button onclick="deleteApproval(\''+a.id+'\')" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:2px 6px">✕</button>' +
         '</div>':'') +
       '</div>' +
@@ -6104,11 +6111,13 @@ function saveApproval(){
   if(status==='Approved'&&!approvedBy){ showToast('Approver name required for Approved status ✕'); return; }
   const evidence = document.getElementById('appr-evidence').value.trim();
   if(evidence&&!/^https?:\/\//.test(evidence)){ showToast('Evidence link must start with https:// ✕'); return; }
+  const delivId = document.getElementById('appr-deliverable').value;
+  const apprType = document.getElementById('appr-type').value;
   DB.approvals.push({
     id: 'appr_'+Date.now(),
     clientId: document.getElementById('appr-client-id').value,
-    deliverableId: document.getElementById('appr-deliverable').value,
-    approvalType: document.getElementById('appr-type').value,
+    deliverableId: delivId,
+    approvalType: apprType,
     status,
     approvedBy,
     evidenceLink: evidence,
@@ -6117,11 +6126,67 @@ function saveApproval(){
     createdAt: Date.now(),
     updatedAt: Date.now()
   });
+  // Auto-advance deliverable status on approval
+  if(status==='Approved' && delivId){
+    const d = (DB.deliverables||[]).find(d=>d.id===delivId);
+    if(d){
+      if(apprType==='Internal' && d.status==='Internal Review') d.status='Ready for Client';
+      else if(apprType==='Client' && (d.status==='Client Review'||d.status==='Ready for Client')) d.status='Approved';
+      syncDelivKStatus(d);
+    }
+  }
+  if(status==='Changes Requested' && delivId){
+    const d = (DB.deliverables||[]).find(d=>d.id===delivId);
+    if(d){ d.status='Changes Requested'; syncDelivKStatus(d); }
+  }
+  // Post to chat
+  const deliv = (DB.deliverables||[]).find(d=>d.id===delivId);
+  const delivName = deliv ? deliv.name : 'a deliverable';
+  if(!DB.chatMessages) DB.chatMessages=[];
+  const icons = {'Approved':'✅','Rejected':'❌','Changes Requested':'🔄','Pending':'⏳'};
+  DB.chatMessages.push({
+    id:'cm_'+Date.now(), uid:currentUser, type:'msg',
+    text:`${icons[status]||''} ${apprType} approval — ${status}${approvedBy?' by '+approvedBy:''}\nDeliverable: "${delivName}"${document.getElementById('appr-note').value.trim()?'\nNote: '+document.getElementById('appr-note').value.trim():''}`,
+    ts: Date.now()
+  });
   saveDB();
   closeModal('modal-approval');
   renderFeedbackApprovals();
   renderDeliverables();
-  showToast('Approval recorded ✓');
+  const msg = status==='Approved' ? '✅ Approved! Deliverable advanced.' : status==='Changes Requested' ? '🔄 Changes requested — deliverable updated.' : 'Approval recorded ✓';
+  showToast(msg);
+}
+
+function quickApprove(apprId){
+  const a = (DB.approvals||[]).find(a=>a.id===apprId);
+  if(!a) return;
+  const approvedBy = prompt('Approved by (name):','');
+  if(approvedBy===null) return;
+  if(!approvedBy.trim()){ showToast('Approver name required ✕'); return; }
+  a.status='Approved';
+  a.approvedBy=approvedBy.trim();
+  a.updatedAt=Date.now();
+  // Auto-advance deliverable
+  if(a.deliverableId){
+    const d=(DB.deliverables||[]).find(d=>d.id===a.deliverableId);
+    if(d){
+      if(a.approvalType==='Internal'&&d.status==='Internal Review') d.status='Ready for Client';
+      else if(a.approvalType==='Client'&&(d.status==='Client Review'||d.status==='Ready for Client')) d.status='Approved';
+      syncDelivKStatus(d);
+    }
+  }
+  // Post to chat
+  const deliv=(DB.deliverables||[]).find(d=>d.id===a.deliverableId);
+  if(!DB.chatMessages) DB.chatMessages=[];
+  DB.chatMessages.push({
+    id:'cm_'+Date.now(), uid:currentUser, type:'msg',
+    text:`✅ ${a.approvalType} approval — Approved by ${approvedBy.trim()}\nDeliverable: "${deliv?deliv.name:'—'}"`,
+    ts:Date.now()
+  });
+  saveDB();
+  renderFeedbackApprovals();
+  renderDeliverables();
+  showToast('✅ Approved! Deliverable advanced.');
 }
 
 function deleteApproval(id){
