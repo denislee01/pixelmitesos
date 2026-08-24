@@ -1413,10 +1413,10 @@ tbody td{padding:10px 14px;color:var(--text);font-weight:500}
       <div class="form-row">
         <label>Advertising Platforms</label>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
-          <label class="checkbox-item" onclick="toggleCheck(this)"><input type="checkbox" value="Meta"/>Meta (Facebook/Instagram)</label>
-          <label class="checkbox-item" onclick="toggleCheck(this)"><input type="checkbox" value="TikTok"/>TikTok</label>
-          <label class="checkbox-item" onclick="toggleCheck(this)"><input type="checkbox" value="Google"/>Google Ads</label>
-          <label class="checkbox-item" onclick="toggleCheck(this)"><input type="checkbox" value="Xiaohongshu"/>Xiaohongshu (小红书)</label>
+          <label class="checkbox-item" onclick="toggleCheck(this,event)"><input type="checkbox" value="Meta"/>Meta (Facebook/Instagram)</label>
+          <label class="checkbox-item" onclick="toggleCheck(this,event)"><input type="checkbox" value="TikTok"/>TikTok</label>
+          <label class="checkbox-item" onclick="toggleCheck(this,event)"><input type="checkbox" value="Google"/>Google Ads</label>
+          <label class="checkbox-item" onclick="toggleCheck(this,event)"><input type="checkbox" value="Xiaohongshu"/>Xiaohongshu (小红书)</label>
         </div>
       </div>
     </div>
@@ -3856,10 +3856,10 @@ function closeReport(){ document.getElementById('report-overlay').classList.remo
 function initModals(){
   // Services checkboxes
   const sc = document.getElementById('services-checkboxes');
-  if(sc) sc.innerHTML = SERVICES_LIST.map(s=>`<label class="checkbox-item" onclick="toggleCheck(this)"><input type="checkbox" value="${s}"/>${s}</label>`).join('');
+  if(sc) sc.innerHTML = SERVICES_LIST.map(s=>`<label class="checkbox-item" onclick="toggleCheck(this,event)"><input type="checkbox" value="${s}"/>${s}</label>`).join('');
   // Assign checkboxes
   const ac = document.getElementById('assign-checkboxes');
-  if(ac) ac.innerHTML = Object.keys(USERS).filter(k=>USERS[k].role==='employee').map(uid=>`<label class="checkbox-item" onclick="toggleCheck(this)"><input type="checkbox" value="${uid}"/>${USERS[uid].name.split(' ')[0]}</label>`).join('');
+  if(ac) ac.innerHTML = Object.keys(USERS).filter(k=>USERS[k].role==='employee').map(uid=>`<label class="checkbox-item" onclick="toggleCheck(this,event)"><input type="checkbox" value="${uid}"/>${USERS[uid].name.split(' ')[0]}</label>`).join('');
   // Task client dropdown
   const tc = document.getElementById('t-client');
   if(tc) tc.innerHTML = '<option value="">No client</option>'+(DB.clients||[]).map(c=>`<option value="${c.id}">${c.businessName}</option>`).join('');
@@ -3867,7 +3867,11 @@ function initModals(){
   document.querySelectorAll('.modal-overlay').forEach(o=>{ o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('open'); }); });
 }
 
-function toggleCheck(label){
+function toggleCheck(label, e){
+  // Prevent the browser's native label->checkbox click-forwarding from firing
+  // a second click on the (hidden) input, which bubbles back up and re-runs
+  // this handler — otherwise every click toggles the class on then right back off.
+  if(e) e.preventDefault();
   label.classList.toggle('selected');
   label.querySelector('input').checked = label.classList.contains('selected');
 }
@@ -4898,9 +4902,9 @@ function openNewTeamModal(){
   document.getElementById('edit-team-id').value = '';
   document.getElementById('nt-name').value = '';
   const mc = document.getElementById('team-members-checkboxes');
-  mc.innerHTML = Object.entries(USERS).map(([k,u])=>`<label class="checkbox-item" onclick="toggleCheck(this)"><input type="checkbox" value="${k}"/>${u.name} <span style="color:var(--text3);font-size:10px">${u.title||u.role}</span></label>`).join('');
+  mc.innerHTML = Object.entries(USERS).map(([k,u])=>`<label class="checkbox-item" onclick="toggleCheck(this,event)"><input type="checkbox" value="${k}"/>${u.name} <span style="color:var(--text3);font-size:10px">${u.title||u.role}</span></label>`).join('');
   const cc = document.getElementById('team-clients-checkboxes');
-  cc.innerHTML = (DB.clients||[]).map(c=>`<label class="checkbox-item" onclick="toggleCheck(this)"><input type="checkbox" value="${c.id}"/>${c.businessName}</label>`).join('');
+  cc.innerHTML = (DB.clients||[]).map(c=>`<label class="checkbox-item" onclick="toggleCheck(this,event)"><input type="checkbox" value="${c.id}"/>${c.businessName}</label>`).join('');
   openModal('modal-new-team');
 }
 
@@ -4913,12 +4917,12 @@ function editTeam(id){
   const mc = document.getElementById('team-members-checkboxes');
   mc.innerHTML = Object.entries(USERS).map(([k,u])=>{
     const sel = (team.members||[]).includes(k);
-    return `<label class="checkbox-item${sel?' selected':''}" onclick="toggleCheck(this)"><input type="checkbox" value="${k}"${sel?' checked':''}/>${u.name} <span style="color:var(--text3);font-size:10px">${u.title||u.role}</span></label>`;
+    return `<label class="checkbox-item${sel?' selected':''}" onclick="toggleCheck(this,event)"><input type="checkbox" value="${k}"${sel?' checked':''}/>${u.name} <span style="color:var(--text3);font-size:10px">${u.title||u.role}</span></label>`;
   }).join('');
   const cc = document.getElementById('team-clients-checkboxes');
   cc.innerHTML = (DB.clients||[]).map(c=>{
     const sel = (team.clients||[]).includes(c.id);
-    return `<label class="checkbox-item${sel?' selected':''}" onclick="toggleCheck(this)"><input type="checkbox" value="${c.id}"${sel?' checked':''}/>${c.businessName}</label>`;
+    return `<label class="checkbox-item${sel?' selected':''}" onclick="toggleCheck(this,event)"><input type="checkbox" value="${c.id}"${sel?' checked':''}/>${c.businessName}</label>`;
   }).join('');
   openModal('modal-new-team');
 }
