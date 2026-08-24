@@ -83,7 +83,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 
 /* KANBAN */
 .kb-board{display:flex;gap:14px;align-items:start;padding-bottom:30px;overflow-x:auto;min-height:200px}
-.kb-col{flex:0 0 220px;min-width:220px}
+.kb-col{flex:1 1 0;min-width:210px}
 .kb-col{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;min-height:220px;transition:border-color .15s}
 .kb-col.drag-over{border-color:var(--accent);background:var(--accent-dim)}
 .kb-col-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -160,6 +160,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .time-entry-row .te-hours{color:var(--accent);font-weight:700;flex-shrink:0}
 .time-entry-row .te-del{color:var(--text3);cursor:pointer;padding:0 2px}
 .time-entry-row .te-del:hover{color:#F56E6E}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
 /* SHOOT SCHEDULE */
 .shoot-week-day{flex:0 0 auto;min-width:72px;padding:8px 10px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);text-align:center;cursor:pointer;transition:background .15s,border-color .15s}
 .shoot-week-day:hover,.shoot-week-day.active{background:var(--accent);border-color:var(--accent)}
@@ -5518,7 +5519,7 @@ function openAddMeeting(editId){
   document.getElementById('mtg-modal-title').textContent = m ? 'Edit Meeting' : 'New Meeting';
   document.getElementById('mtg-id').value = editId||'';
   document.getElementById('mtg-title').value = m ? m.title||'' : '';
-  document.getElementById('mtg-date').value = m ? m.date||'' : new Date().toISOString().split('T')[0];
+  document.getElementById('mtg-date').value = m ? m.date||'' : localDateStr();
   document.getElementById('mtg-time').value = m ? m.time||'' : '';
   document.getElementById('mtg-notes').value = m ? m.notes||'' : '';
   openModal('modal-meeting');
@@ -6022,7 +6023,7 @@ function renderApprovalList(el, fc){
             (dateStr?'<span style="font-size:10px;color:var(--text3)">'+dateStr+'</span>':'') +
           '</div>' +
           '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">'+escHtml(deliv?deliv.name:'No deliverable linked')+'</div>' +
-          '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">'+escHtml(clientName)+(a.approvedBy?' &nbsp;·&nbsp; <span style="color:var(--text2)">'+escHtml(a.approvalType==='Approved'?'Approved':'Actioned')+' by '+escHtml(a.approvedBy)+'</span>':'')+'</div>' +
+          '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">'+escHtml(clientName)+(a.approvedBy?' &nbsp;·&nbsp; <span style="color:var(--text2)">'+escHtml(a.status==='Approved'?'Approved':'Actioned')+' by '+escHtml(a.approvedBy)+'</span>':'')+'</div>' +
           (a.note?'<div style="font-size:12px;color:var(--text);line-height:1.5;background:var(--surface2);border-radius:var(--radius);padding:8px 12px;margin-bottom:8px">'+escHtml(a.note)+'</div>':'') +
           (a.evidenceLink&&/^https?:\/\//.test(a.evidenceLink)?'<a href="'+a.evidenceLink+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;font-weight:700;color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;gap:4px">📎 View Evidence ↗</a>':'') +
         '</div>' +
@@ -6234,6 +6235,7 @@ function saveApproval(){
   if(evidence&&!/^https?:\/\//.test(evidence)){ showToast('Evidence link must start with https:// ✕'); return; }
   const delivId = document.getElementById('appr-deliverable').value;
   const apprType = document.getElementById('appr-type').value;
+  if(!Array.isArray(DB.approvals)) DB.approvals=[];
   DB.approvals.push({
     id: 'appr_'+Date.now(),
     clientId: document.getElementById('appr-client-id').value,
@@ -6560,7 +6562,7 @@ function getHealthPillHtml(proj){
 function openLogTime(taskId, projectId){
   document.getElementById('te-modal-title').textContent = 'Log Time';
   document.getElementById('te-hours').value = '';
-  document.getElementById('te-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('te-date').value = localDateStr();
   document.getElementById('te-desc').value = '';
   document.getElementById('te-entry-id').value = '';
 
@@ -6951,22 +6953,30 @@ updateTopbar = function(){
    SHOOT SCHEDULE
    ============================================================ */
 
-let _shootActiveDate = null; // YYYY-MM-DD string, null = show all upcoming
+let _shootActiveDate = null; // YYYY-MM-DD local string, null = show all upcoming
+
+// Returns local date as 'YYYY-MM-DD' — avoids UTC offset bugs from toISOString()
+function localDateStr(d){
+  const dd = d || new Date();
+  const y = dd.getFullYear();
+  const m = String(dd.getMonth()+1).padStart(2,'0');
+  const day = String(dd.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 
 function renderShootSchedule(){
   if(!Array.isArray(DB.shootSchedules)) DB.shootSchedules = [];
   const allU = {...USERS, ...(DB.dynamicUsers||[]).reduce((o,u)=>{o[u.key]=u;return o},{})};
-  const today = new Date();
-  today.setHours(0,0,0,0);
+  const todayStr = localDateStr();
 
   // Week strip — 7 days starting today
   const stripEl = document.getElementById('shoot-week-strip');
   if(stripEl){
     const days = [];
     for(let i=0;i<7;i++){
-      const d = new Date(today);
-      d.setDate(today.getDate()+i);
-      const ds = d.toISOString().slice(0,10);
+      const d = new Date();
+      d.setDate(d.getDate()+i);
+      const ds = localDateStr(d);
       const hasShoots = DB.shootSchedules.some(s=>s.date===ds);
       const isActive = _shootActiveDate===ds;
       const label = i===0?'Today':d.toLocaleDateString('en-MY',{weekday:'short'});
@@ -6988,7 +6998,6 @@ function renderShootSchedule(){
   if(_shootActiveDate){
     shoots = shoots.filter(s=>s.date===_shootActiveDate);
   } else {
-    const todayStr = today.toISOString().slice(0,10);
     shoots = shoots.filter(s=>s.date>=todayStr);
     shoots.sort((a,b)=>a.date.localeCompare(b.date)||(a.start||'').localeCompare(b.start||''));
   }
@@ -7009,7 +7018,6 @@ function renderShootSchedule(){
   let html = '';
   Object.keys(groups).sort().forEach(date=>{
     const d = new Date(date+'T00:00:00');
-    const todayStr = today.toISOString().slice(0,10);
     const label = date===todayStr?'Today — '+d.toLocaleDateString('en-MY',{weekday:'long',month:'short',day:'numeric'})
       :d.toLocaleDateString('en-MY',{weekday:'long',year:'numeric',month:'short',day:'numeric'});
     html += `<div class="wl-week-label">${label}</div>`;
@@ -7064,7 +7072,7 @@ function openAddShoot(id){
   const existing = id ? DB.shootSchedules.find(s=>s.id===id) : null;
   document.getElementById('shoot-modal-title').textContent = existing?'Edit Shoot':'Add Shoot';
   document.getElementById('shoot-id').value = existing?.id||'';
-  document.getElementById('shoot-date').value = existing?.date||new Date().toISOString().slice(0,10);
+  document.getElementById('shoot-date').value = existing?.date||localDateStr();
   document.getElementById('shoot-start').value = existing?.start||'';
   document.getElementById('shoot-end').value = existing?.end||'';
   document.getElementById('shoot-location').value = existing?.location||'';
@@ -7098,6 +7106,7 @@ function saveShoot(){
   } else {
     DB.shootSchedules.push(entry);
   }
+  _shootActiveDate = null; // always show all upcoming after save so user sees the new entry
   saveDB();
   closeModal('modal-shoot');
   renderShootSchedule();
@@ -7115,7 +7124,7 @@ function deleteShoot(id){
 function renderOnSiteToday(){
   const panel = document.getElementById('onsite-today-panel');
   if(!panel||!Array.isArray(DB.shootSchedules)) return;
-  const todayStr = new Date().toISOString().slice(0,10);
+  const todayStr = localDateStr();
   const todayShoots = DB.shootSchedules.filter(s=>s.date===todayStr);
   if(!todayShoots.length){ panel.innerHTML=''; return; }
   const allU = {...USERS,...(DB.dynamicUsers||[]).reduce((o,u)=>{o[u.key]=u;return o},{})};
@@ -7161,6 +7170,7 @@ function renameCustomCol(colId, newName){
   if(!col||!newName.trim()||col.name===newName.trim()) return;
   col.name = newName.trim();
   saveDB();
+  renderKanban();
 }
 
 function deleteCustomCol(colId){
