@@ -1036,43 +1036,19 @@ tbody td{padding:10px 14px;color:var(--text);font-weight:500}
 
 <!-- MEETING MODAL -->
 <div class="modal-overlay" id="modal-meeting">
-  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
+  <div class="modal" style="max-width:520px">
     <button class="modal-close" onclick="closeModal('modal-meeting')">✕</button>
     <div class="modal-title" id="mtg-modal-title">New Meeting</div>
     <div class="form-row"><label>Title *</label><input id="mtg-title" placeholder="e.g. Weekly Sync — weReka"/></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="form-row"><label>Date *</label><input type="date" id="mtg-date"/></div>
-      <div class="form-row"><label>Client</label>
-        <select id="mtg-client" style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:9px 12px;color:var(--text);font-family:var(--font);font-size:13px;width:100%">
-          <option value="">Internal</option>
-        </select>
-      </div>
+      <div class="form-row" style="margin:0"><label>Date *</label><input type="date" id="mtg-date"/></div>
+      <div class="form-row" style="margin:0"><label>Time</label><input type="time" id="mtg-time"/></div>
     </div>
-    <div class="form-row"><label>Attendees (select keys, comma-separated)</label><input id="mtg-attendees" placeholder="e.g. denis, bolson"/></div>
-    <div class="form-row"><label>Agenda / Summary</label><textarea id="mtg-agenda" rows="3" placeholder="What was discussed..."></textarea></div>
-    <div class="form-row"><label>Decisions Made</label><textarea id="mtg-decisions" rows="2" placeholder="Key decisions agreed upon..."></textarea></div>
-    <div class="form-row">
-      <label>Action Items</label>
-      <div id="mtg-action-items-area"></div>
-      <button onclick="addMtgActionItem()" style="font-size:11px;font-weight:700;color:var(--accent);background:transparent;border:1px dashed var(--border2);border-radius:var(--radius);padding:6px 14px;cursor:pointer;width:100%;margin-top:6px">+ Add Action Item</button>
-    </div>
-    <div class="form-row"><label>Open Questions</label><textarea id="mtg-questions" rows="2" placeholder="Questions raised, not yet answered..."></textarea></div>
-    <div class="form-row"><label>Scope Changes</label><textarea id="mtg-scope" rows="2" placeholder="Any scope changes agreed..."></textarea></div>
+    <div class="form-row"><label>Notes</label><textarea id="mtg-notes" rows="10" placeholder="Write your meeting notes here..." style="resize:vertical;min-height:180px;line-height:1.7"></textarea></div>
+    <input type="hidden" id="mtg-id"/>
     <div class="form-actions">
       <button class="btn-outline" onclick="closeModal('modal-meeting')">Cancel</button>
       <button class="btn-primary" onclick="saveMeeting()">Save Meeting</button>
-    </div>
-  </div>
-</div>
-
-<!-- MEETING VIEW MODAL -->
-<div class="modal-overlay" id="modal-meeting-view">
-  <div class="modal" style="max-width:580px;max-height:90vh;overflow-y:auto">
-    <button class="modal-close" onclick="closeModal('modal-meeting-view')">✕</button>
-    <div class="modal-title" id="mtg-view-title"></div>
-    <div id="mtg-view-body"></div>
-    <div class="form-actions" style="margin-top:8px">
-      <button class="btn-outline" onclick="closeModal('modal-meeting-view')">Close</button>
     </div>
   </div>
 </div>
@@ -5317,34 +5293,23 @@ function renderMeetings(){
 
 function renderMeetingList(el){
   const mtgs = (DB.meetings||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
-  const visible = hasDirectorAccess() ? mtgs : mtgs.filter(m=>(m.attendees||[]).includes(currentUser)||m.createdBy===currentUser);
+  const visible = hasDirectorAccess() ? mtgs : mtgs.filter(m=>m.createdBy===currentUser);
   if(!visible.length){
     el.innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--text3);font-size:13px">No meetings recorded yet. Click <strong>+ New Meeting</strong> to add one.</div>';
     return;
   }
-  const allU = {...USERS, ...(DB.dynamicUsers||[]).reduce((o,u)=>{o[u.key]=u;return o},{})};
   el.innerHTML = visible.map(m=>{
-    const client = (DB.clients||[]).find(c=>c.id===m.clientId);
-    const clientName = client ? (client.businessName||client.contractName) : (m.clientId ? m.clientId : 'Internal');
-    const openAI = (m.actionItems||[]).filter(a=>a.status==='open').length;
-    const convertedAI = (m.actionItems||[]).filter(a=>a.status==='converted').length;
-    const totalAI = (m.actionItems||[]).length;
-    return '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:20px;margin-bottom:14px">' +
-      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px">' +
+    const timeStr = m.time ? ' &nbsp;·&nbsp; '+m.time : '';
+    const preview = (m.notes||'').slice(0,140).replace(/\n/g,' ');
+    return '<div style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:20px;margin-bottom:14px;cursor:pointer" onclick="openViewMeeting(\''+m.id+'\')">' +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">' +
         '<div>' +
-          '<div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px">'+escHtml(m.title)+'</div>' +
-          '<div style="font-size:12px;color:var(--text3)">'+m.date+' &nbsp;·&nbsp; '+escHtml(clientName)+'</div>' +
+          '<div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:3px">'+escHtml(m.title)+'</div>' +
+          '<div style="font-size:12px;color:var(--text3)">'+escHtml(m.date)+timeStr+'</div>' +
         '</div>' +
-        '<div style="display:flex;gap:4px;flex-shrink:0">' +
-          '<button onclick="openViewMeeting(\''+m.id+'\')" style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text2);cursor:pointer;font-size:11px;font-weight:700;padding:5px 10px">View</button>' +
-          (hasDirectorAccess()||m.createdBy===currentUser ? '<button onclick="deleteMeeting(\''+m.id+'\')" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 6px">✕</button>' : '') +
-        '</div>' +
+        (hasDirectorAccess()||m.createdBy===currentUser ? '<button onclick="event.stopPropagation();deleteMeeting(\''+m.id+'\')" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 6px;flex-shrink:0">✕</button>' : '') +
       '</div>' +
-      (m.agenda ? '<div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.5">'+escHtml(m.agenda.slice(0,120))+(m.agenda.length>120?'…':'')+'</div>' : '') +
-      '<div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--text3)">' +
-        (totalAI ? '<span style="font-weight:700">'+openAI+' open · '+convertedAI+' → tasks</span>' : '<span>No action items</span>') +
-        ((m.attendees||[]).length ? '<span>'+(m.attendees||[]).map(k=>allU[k]?.name||k).join(', ')+'</span>' : '') +
-      '</div>' +
+      (preview ? '<div style="font-size:12px;color:var(--text2);line-height:1.6">'+escHtml(preview)+((m.notes||'').length>140?'…':'')+'</div>' : '') +
     '</div>';
   }).join('');
 }
@@ -5374,20 +5339,15 @@ function renderNoteList(el){
   '</div>';
 }
 
-function openAddMeeting(){
-  _mtgEditId = null;
-  document.getElementById('mtg-modal-title').textContent = 'New Meeting';
-  document.getElementById('mtg-title').value = '';
-  document.getElementById('mtg-date').value = new Date().toISOString().split('T')[0];
-  document.getElementById('mtg-client').value = '';
-  document.getElementById('mtg-attendees').value = '';
-  document.getElementById('mtg-agenda').value = '';
-  document.getElementById('mtg-decisions').value = '';
-  document.getElementById('mtg-action-items-area').innerHTML = '';
-  document.getElementById('mtg-questions').value = '';
-  document.getElementById('mtg-scope').value = '';
-  window._mtgCurrentAIs = [];
-  populateMtgClientDropdown();
+function openAddMeeting(editId){
+  _mtgEditId = editId||null;
+  const m = editId ? (DB.meetings||[]).find(m=>m.id===editId) : null;
+  document.getElementById('mtg-modal-title').textContent = m ? 'Edit Meeting' : 'New Meeting';
+  document.getElementById('mtg-id').value = editId||'';
+  document.getElementById('mtg-title').value = m ? m.title||'' : '';
+  document.getElementById('mtg-date').value = m ? m.date||'' : new Date().toISOString().split('T')[0];
+  document.getElementById('mtg-time').value = m ? m.time||'' : '';
+  document.getElementById('mtg-notes').value = m ? m.notes||'' : '';
   openModal('modal-meeting');
 }
 
@@ -5427,18 +5387,10 @@ function saveMeeting(){
   const date = document.getElementById('mtg-date').value;
   if(!title){ showToast('Meeting title is required ✕'); return; }
   if(!date){ showToast('Meeting date is required ✕'); return; }
-  const attendeesRaw = document.getElementById('mtg-attendees').value;
-  const attendees = attendeesRaw ? attendeesRaw.split(',').map(s=>s.trim()).filter(Boolean) : [];
   const mtgData = {
-    title,
-    date,
-    clientId: document.getElementById('mtg-client').value,
-    attendees,
-    agenda: document.getElementById('mtg-agenda').value.trim(),
-    decisions: document.getElementById('mtg-decisions').value.trim(),
-    actionItems: (window._mtgCurrentAIs||[]).filter(a=>a.text.trim()),
-    questions: document.getElementById('mtg-questions').value.trim(),
-    scopeChanges: document.getElementById('mtg-scope').value.trim(),
+    title, date,
+    time: document.getElementById('mtg-time').value,
+    notes: document.getElementById('mtg-notes').value
   };
   if(_mtgEditId){
     const m = (DB.meetings||[]).find(m=>m.id===_mtgEditId);
@@ -5460,40 +5412,7 @@ function deleteMeeting(id){
 }
 
 function openViewMeeting(id){
-  const m = (DB.meetings||[]).find(m=>m.id===id);
-  if(!m) return;
-  const allU = {...USERS, ...(DB.dynamicUsers||[]).reduce((o,u)=>{o[u.key]=u;return o},{})};
-  const client = (DB.clients||[]).find(c=>c.id===m.clientId);
-  const clientName = client ? (client.businessName||client.contractName) : 'Internal';
-  const userOpts = Object.entries(allU).filter(([k,u])=>!u.former).map(([k,u])=>'<option value="'+k+'">'+escHtml(u.name)+'</option>').join('');
-  const aiHtml = (m.actionItems||[]).length ? (m.actionItems||[]).map((ai,i)=>{
-    const isConverted = ai.status==='converted';
-    const assigneeName = ai.assignee ? (allU[ai.assignee]?.name||ai.assignee) : 'Unassigned';
-    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius);margin-bottom:6px;opacity:'+(isConverted?'0.6':'1')+'">' +
-      '<div style="flex:1;font-size:12px;color:var(--text)'+(ai.status==='done'?';text-decoration:line-through':'')+'">'+escHtml(ai.text)+'</div>' +
-      '<div style="font-size:11px;color:var(--text3)">'+escHtml(assigneeName)+'</div>' +
-      (ai.dueDate ? '<div style="font-size:11px;color:var(--text3)">'+ai.dueDate+'</div>' : '') +
-      (!isConverted && hasDirectorAccess() ?
-        '<button onclick="convertAIToTask(\''+m.id+'\',\''+ai.id+'\')" style="font-size:10px;font-weight:700;background:var(--accent);border:none;border-radius:20px;padding:3px 8px;cursor:pointer;color:#1A1A1F;white-space:nowrap">→ Task</button>' : '') +
-      (isConverted ? '<span style="font-size:10px;font-weight:700;color:#3DDBA0">✓ Task</span>' : '') +
-    '</div>';
-  }).join('') : '<div style="font-size:12px;color:var(--text3);padding:8px 0">No action items</div>';
-  const body = document.getElementById('mtg-view-body');
-  if(body) body.innerHTML =
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;font-size:12px;color:var(--text2)">' +
-      '<div><strong>Date:</strong> '+m.date+'</div>' +
-      '<div><strong>Client:</strong> '+escHtml(clientName)+'</div>' +
-      '<div><strong>Attendees:</strong> '+(m.attendees||[]).map(k=>allU[k]?.name||k).join(', ')+'</div>' +
-    '</div>' +
-    (m.agenda ? '<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);margin-bottom:6px">Agenda</div><div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap">'+escHtml(m.agenda)+'</div></div>' : '') +
-    (m.decisions ? '<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);margin-bottom:6px">Decisions Made</div><div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap">'+escHtml(m.decisions)+'</div></div>' : '') +
-    '<div style="margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text3)">Action Items</div>' +
-      (hasDirectorAccess() ? '<button onclick="convertAllAIToTasks(\''+m.id+'\')" style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:4px 10px;cursor:pointer;color:var(--text2)">Convert All → Tasks</button>' : '') +
-    '</div>' + aiHtml + '</div>' +
-    (m.questions ? '<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);margin-bottom:6px">Open Questions</div><div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap">'+escHtml(m.questions)+'</div></div>' : '') +
-    (m.scopeChanges ? '<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);margin-bottom:6px">Scope Changes</div><div style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap">'+escHtml(m.scopeChanges)+'</div></div>' : '');
-  document.getElementById('mtg-view-title').textContent = m.title;
-  openModal('modal-meeting-view');
+  openAddMeeting(id);
 }
 
 function convertAIToTask(mtgId, aiId){
